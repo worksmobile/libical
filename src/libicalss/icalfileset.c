@@ -335,9 +335,37 @@ static char *shell_quote(const char *s)
 
 #endif
 
+/*   ** Function return value meaning
+ * -1 cannot open source file
+ * -2 cannot open destination file
+ * 0 Success
+ */
+int File_Copy (char FileSource [], char FileDestination [])
+{
+    int   c;
+    FILE *stream_R;
+    FILE *stream_W;
+    
+    stream_R = fopen (FileSource, "r");
+    if (stream_R == NULL)
+        return -1;
+    stream_W = fopen (FileDestination, "w");   //create and write to file
+    if (stream_W == NULL)
+    {
+        fclose (stream_R);
+        return -2;
+    }
+    while ((c = fgetc(stream_R)) != EOF)
+        fputc (c, stream_W);
+    fclose (stream_R);
+    fclose (stream_W);
+    
+    return 0;
+}
+
 icalerrorenum icalfileset_commit(icalset *set)
 {
-    char tmp[MAXPATHLEN];
+    char destPath[MAXPATHLEN];
     char *str;
     icalcomponent *c;
     size_t write_size = 0;
@@ -360,27 +388,17 @@ icalerrorenum icalfileset_commit(icalset *set)
 #if !defined(_WIN32)
         char *quoted_file = shell_quote(fset->path);
 
-        snprintf(tmp, MAXPATHLEN, "cp '%s' '%s.bak'", fset->path, fset->path);
+        snprintf(destPath, MAXPATHLEN, "%s.bak", fset->path);
         free(quoted_file);
 #else
-        snprintf(tmp, MAXPATHLEN, "copy %s %s.bak", fset->path, fset->path);
+        snprintf(destPath, MAXPATHLEN, "%s.bak", fset->path);
 #endif
 
-#if !defined(_WIN32_WCE)
-        if (system(tmp) < 0) {
-#else
-
-        wtmp = wce_mbtowc(tmp);
-
-        if (CreateProcess(wtmp, L"", NULL, NULL, FALSE, 0, NULL, NULL, NULL, &pi)) {
-#endif
+        if (File_Copy(fset->path, destPath) < 0) {
             icalerror_set_errno(ICAL_FILE_ERROR);
             return ICAL_FILE_ERROR;
         }
     }
-#if defined(_WIN32_WCE)
-    free(wtmp);
-#endif
 
     if (lseek(fset->fd, 0, SEEK_SET) < 0) {
         icalerror_set_errno(ICAL_FILE_ERROR);
